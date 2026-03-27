@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#060C1A"/>
+  <title>Megha House AR — House Meet 2025</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="stars"></div>
+  <div class="particles" id="particles"></div>
+
+  <main class="page">
+    <div class="glow-orb"></div>
+
+    <div class="badge">🏫 Obbegoda Secondary School</div>
+
+    <div class="logo-ring">
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="ring r3"></div>
+      <div class="house-icon">🏆</div>
+    </div>
+
+    <h1 class="title">
+      <span class="line1">MEGHA</span>
+      <span class="line2">HOUSE</span>
+    </h1>
+
+    <p class="tagline">Experience the Victory · Augmented Reality</p>
+
+    <button class="enter-btn" id="enterBtn" onclick="launchAR()">
+      <span class="btn-glow"></span>
+      <span class="btn-text">⬡ ENTER AR EXPERIENCE</span>
+    </button>
+
+    <div class="status-box" id="statusBox"></div>
+
+    <div class="instructions">
+      <div class="inst-item"><span>📍</span><p>Be at the school playground</p></div>
+      <div class="inst-item"><span>📷</span><p>Allow camera & GPS</p></div>
+      <div class="inst-item"><span>🎭</span><p>Point phone at the ground</p></div>
+    </div>
+
+    <div class="credits-bar">
+      Megha House · House Meet · Made with ❤️ by Megha Team
+    </div>
+  </main>
+
+  <script src="geo-check.js"></script>
+  <script>
+    // Generate floating particles
+    const p = document.getElementById('particles');
+    for (let i = 0; i < 30; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'particle';
+      dot.style.cssText = `
+        left: ${Math.random()*100}%;
+        top: ${Math.random()*100}%;
+        animation-delay: ${Math.random()*4}s;
+        animation-duration: ${3 + Math.random()*4}s;
+        width: ${2 + Math.random()*4}px;
+        height: ${2 + Math.random()*4}px;
+        opacity: ${0.2 + Math.random()*0.5};
+      `;
+      p.appendChild(dot);
+    }
+
+    function launchAR() {
+      const btn = document.getElementById('enterBtn');
+      const status = document.getElementById('statusBox');
+
+      btn.textContent = '⏳ Checking your location...';
+      btn.disabled = true;
+      status.innerHTML = '';
+
+      checkGeoLock(
+        function(dist) { // ✅ Allowed
+          status.innerHTML = `<div class="status ok">✅ Location verified! (${dist.toFixed(0)}m away) Loading AR...</div>`;
+          setTimeout(() => { window.location.href = 'ar.html'; }, 1500);
+        },
+        function(dist) { // ❌ Too far
+          status.innerHTML = `<div class="status err">❌ You need to be at Obbegoda School!<br>You are ${dist.toFixed(0)}m away. Come closer!</div>`;
+          btn.textContent = '⬡ ENTER AR EXPERIENCE';
+          btn.disabled = false;
+        },
+        function(msg) { // ⚠️ Error
+          status.innerHTML = `<div class="status warn">⚠️ ${msg}</div>`;
+          btn.textContent = '⬡ ENTER AR EXPERIENCE';
+          btn.disabled = false;
+        }
+      );
+    }
+  </script>
+</body>
+</html>
