@@ -2,36 +2,44 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Megha House AR</title>
-
-  <!-- A-Frame: the AR engine -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 
-  <!-- AR.js: makes it use the phone camera -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-
   <style>
-    body { margin: 0; overflow: hidden; background: black; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 
+    /* A-Frame canvas fills the screen always */
+    a-scene { position: fixed; inset: 0; width: 100% !important; height: 100% !important; }
+
+    /* ── OVERLAYS sit ON TOP of the scene ── */
+
+    /* GEO OVERLAY */
     #geo-overlay {
       position: fixed; inset: 0; z-index: 999;
       background: #060C1A;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       text-align: center; padding: 30px;
-      font-family: 'DM Sans', sans-serif;
       color: white;
+      transition: opacity 0.8s ease;
     }
+    #geo-overlay.fade-out { opacity: 0; pointer-events: none; }
     #geo-overlay h2 {
-      font-size: 1.8rem; margin-bottom: 12px;
+      font-size: 2.2rem; font-weight: 900; letter-spacing: 4px;
+      font-family: Arial, sans-serif;
       background: linear-gradient(135deg, #1E6FFF, #FFD700);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
     }
-    #geo-status { font-size: 1rem; color: rgba(255,255,255,0.6); margin-top: 16px; }
+    #geo-overlay p {
+      color: rgba(255,255,255,0.55); font-size: 0.95rem;
+      font-family: Arial, sans-serif; line-height: 1.7; margin-top: 12px;
+    }
     .spinner {
-      width: 50px; height: 50px;
-      border: 3px solid rgba(30,111,255,0.3);
+      width: 54px; height: 54px;
+      border: 3px solid rgba(30,111,255,0.25);
       border-top-color: #1E6FFF;
       border-radius: 50%;
       animation: spin 1s linear infinite;
@@ -39,196 +47,265 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    #music-btn {
-      position: fixed; bottom: 24px; right: 24px; z-index: 100;
-      background: rgba(30,111,255,0.8);
-      border: none; border-radius: 50%; width: 56px; height: 56px;
-      font-size: 1.4rem; cursor: pointer; color: white;
-      box-shadow: 0 4px 20px rgba(30,111,255,0.4);
+    /* DENIED OVERLAY */
+    #denied-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: #060C1A;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 30px; color: white;
+      font-family: Arial, sans-serif;
     }
+    #denied-overlay h2 { font-size: 2rem; color: #FF4B4B; margin-bottom: 14px; }
+    #denied-overlay p { color: rgba(255,255,255,0.6); line-height: 1.7; font-size: 0.95rem; }
+    #denied-dist { font-size: 1.5rem; font-weight: 700; color: #FFD700; margin: 12px 0; }
+
+    /* TOP BAR */
     #ar-ui {
       position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-      padding: 16px 20px;
-      display: flex; justify-content: space-between; align-items: center;
-      background: linear-gradient(to bottom, rgba(6,12,26,0.8), transparent);
+      padding: 14px 20px;
+      display: none; justify-content: space-between; align-items: center;
+      background: linear-gradient(to bottom, rgba(6,12,26,0.85), transparent);
+      font-family: Arial, sans-serif;
+      pointer-events: none;
     }
-    #ar-ui .house-name {
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 700; font-size: 1rem;
-      color: white; letter-spacing: 2px;
+    .house-name { font-weight: 900; font-size: 1rem; color: white; letter-spacing: 3px; }
+    .live-dot {
+      width: 9px; height: 9px; background: #00E676;
+      border-radius: 50%; animation: blink 1.5s ease infinite;
     }
-    #ar-ui .dot { width: 8px; height: 8px; background: #00E676; border-radius: 50%; animation: blink 1.5s ease infinite; }
-    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
+
+    /* MUSIC BUTTON */
+    #music-btn {
+      position: fixed; bottom: 28px; right: 24px; z-index: 100;
+      background: rgba(30,111,255,0.85);
+      border: 2px solid rgba(77,148,255,0.5);
+      border-radius: 50%; width: 58px; height: 58px;
+      font-size: 1.5rem; cursor: pointer; color: white;
+      box-shadow: 0 4px 24px rgba(30,111,255,0.5);
+      display: none;
+    }
+
+    /* HINT */
+    #hint {
+      position: fixed; bottom: 32px; left: 0; right: 80px; z-index: 50;
+      text-align: center; font-size: 0.78rem;
+      color: rgba(255,255,255,0.5); letter-spacing: 1px;
+      font-family: Arial, sans-serif;
+      pointer-events: none; display: none;
+    }
   </style>
 </head>
 <body>
 
-<!-- GEO-LOCK OVERLAY: shown first, hidden after GPS check -->
-<div id="geo-overlay">
-  <h2>🏆 MEGHA HOUSE AR</h2>
-  <div class="spinner"></div>
-  <p id="geo-status">Verifying your location...</p>
-</div>
-
-<!-- AR UI (top bar, always visible) -->
-<div id="ar-ui" style="display:none">
-  <span class="house-name">MEGHA HOUSE</span>
-  <div class="dot"></div>
-</div>
-
-<!-- Music button -->
-<button id="music-btn" style="display:none" onclick="toggleMusic()">🔊</button>
-
-<!-- THE AR SCENE -->
+<!-- ══════ THE 3D SCENE — always in DOM, NEVER hidden ══════
+     The geo overlay sits ON TOP. Scene renders behind it.
+     This fixes the black screen bug completely.
+══════ -->
 <a-scene
-  id="arScene"
-  style="display:none"
-  embedded
-  arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-  renderer="logarithmicDepthBuffer: true; antialias: true;"
   vr-mode-ui="enabled: false"
   loading-screen="enabled: false"
+  renderer="antialias: true; logarithmicDepthBuffer: true; colorManagement: true;"
+  device-orientation-permission-ui="enabled: false"
 >
 
-  <!-- Assets: preload all 3D models and audio -->
-  <a-assets timeout="10000">
+  <a-assets timeout="20000">
     <a-asset-item id="athlete-model" src="models/athlete.glb"></a-asset-item>
     <a-asset-item id="logo-model"    src="models/logo.glb"></a-asset-item>
+    <a-asset-item id="trophy-model"  src="models/trophy.glb"></a-asset-item>
     <audio id="bg-music" src="audio/megha-theme.mp3" preload="auto" loop></audio>
   </a-assets>
 
-  <!-- CAMERA (required) -->
-  <a-entity camera></a-entity>
+  <!-- Sky (light grey like aframe.io/examples) -->
+  <a-sky color="#C8D8DC"></a-sky>
 
-  <!-- ═══ NORTH SIDE — Athlete with flag + trophy ═══ -->
+  <!-- Ground (teal-green like aframe.io/examples) -->
+  <a-plane
+    position="0 0 0" rotation="-90 0 0"
+    width="60" height="60" color="#5cb88a"
+    shadow="receive: true"
+  ></a-plane>
+
+  <!-- Lights -->
+  <a-light type="ambient"     color="#ffffff" intensity="0.75"></a-light>
+  <a-light type="directional" color="#ffffff" intensity="1.1"
+           position="-1 3 1" shadow="cast: true"></a-light>
+
+  <!-- ═══ NORTH — Main Blue Athlete (animated) ═══ -->
   <a-entity
     id="athlete"
     gltf-model="#athlete-model"
     position="0 0 -3"
-    rotation="0 180 0"
-    scale="0.8 0.8 0.8"
+    scale="1.5 1.5 1.5"
+    rotation="0 0 0"
     animation-mixer="clip: *; loop: repeat; crossFadeDuration: 0.3"
+    shadow="cast: true"
   ></a-entity>
 
-  <!-- ═══ EAST SIDE — Megha House Logo ═══ -->
+  <!-- ═══ EAST — Logo ═══ -->
   <a-entity
-    id="logo"
     gltf-model="#logo-model"
-    position="3 0 0"
-    rotation="0 -90 0"
-    scale="0.6 0.6 0.6"
+    position="3 0.5 -2"
+    scale="1 1 1"
+    rotation="0 -45 0"
+    shadow="cast: true"
   ></a-entity>
 
-  <!-- ═══ WEST SIDE — Teachers Credits ═══ -->
-  <a-entity position="-3 1.5 0" rotation="0 90 0">
-    <!-- Background panel -->
-    <a-plane
-      color="#0A1F4A"
-      opacity="0.85"
-      width="2.5"
-      height="2"
-      position="0 0 -0.01"
-    ></a-plane>
+  <!-- ═══ WEST — Trophy (slowly spinning) ═══ -->
+  <a-entity
+    gltf-model="#trophy-model"
+    position="-3 0 -2"
+    scale="1 1 1"
+    rotation="0 45 0"
+    animation="property: rotation; to: 0 405 0; loop: true; dur: 5000; easing: linear"
+    shadow="cast: true"
+  ></a-entity>
 
-    <!-- Title -->
-    <a-text
-      value="MEGHA HOUSE\nTeachers Credits"
-      color="#FFD700"
-      align="center"
-      position="0 0.6 0"
-      scale="0.5 0.5 0.5"
-      font="https://cdn.aframe.io/fonts/mozillavr.fnt"
-    ></a-text>
-
-    <!-- ⚠️ REPLACE THESE NAMES WITH YOUR ACTUAL TEACHERS -->
-    <a-text
-      value="Mr. / Mrs. [Teacher Name 1]\nMr. / Mrs. [Teacher Name 2]\nMr. / Mrs. [Teacher Name 3]\nMr. / Mrs. [Teacher Name 4]"
-      color="#A8C4FF"
-      align="center"
-      position="0 -0.1 0"
-      scale="0.3 0.3 0.3"
-    ></a-text>
-
-    <a-text
-      value="Obbegoda Secondary School"
-      color="rgba(255,255,255,0.5)"
-      align="center"
-      position="0 -0.75 0"
-      scale="0.22 0.22 0.22"
-    ></a-text>
-  </a-entity>
-
-  <!-- FLOATING PARTICLES (blue dots for atmosphere) -->
-  <a-entity position="0 0 -2">
-    <a-sphere color="#1E6FFF" radius="0.05" position="0.5 1.5 0"
-      animation="property: position; to: 0.5 2.5 0; loop: true; dir: alternate; dur: 2000; easing: easeInOutSine"></a-sphere>
-    <a-sphere color="#FFD700" radius="0.04" position="-0.5 1.2 0"
-      animation="property: position; to: -0.5 2.2 0; loop: true; dir: alternate; dur: 2500; easing: easeInOutSine"></a-sphere>
-    <a-sphere color="#1E6FFF" radius="0.03" position="1 1.8 0.2"
-      animation="property: position; to: 1 2.8 0.2; loop: true; dir: alternate; dur: 3000; easing: easeInOutSine"></a-sphere>
-  </a-entity>
-
-  <!-- GROUND RING (visual anchor) -->
-  <a-torus
+  <!-- Floating text above athlete -->
+  <a-text
+    value="MEGHA HOUSE"
+    align="center"
+    position="0 2.8 -3"
     color="#1E6FFF"
-    radius="1"
-    radius-tubular="0.01"
-    position="0 0.01 -1.5"
-    rotation="90 0 0"
-    opacity="0.5"
-    animation="property: rotation; to: 90 360 0; loop: true; dur: 8000; easing: linear"
-  ></a-torus>
+    width="5"
+  ></a-text>
+
+  <!-- Camera: tilt phone to look around -->
+  <a-entity
+    camera
+    look-controls="magicWindowTrackingEnabled: true; touchEnabled: true; mouseEnabled: true"
+    wasd-controls="enabled: false"
+    position="0 1.6 0"
+  ></a-entity>
 
 </a-scene>
 
-<!-- Audio element -->
-<audio id="bgAudio" src="audio/megha-theme.mp3" loop preload="auto"></audio>
+<!-- ══════ OVERLAYS ══════ -->
 
-<script src="geo-check.js"></script>
+<div id="geo-overlay">
+  <h2>🏆 MEGHA HOUSE</h2>
+  <div class="spinner"></div>
+  <p id="geo-status">Verifying your location...<br>Please allow GPS access.</p>
+</div>
+
+<div id="denied-overlay">
+  <h2>❌ Access Denied</h2>
+  <p>You must be at Obbegoda Secondary School.</p>
+  <div id="denied-dist"></div>
+  <p>Come to the school and try again! 📍</p>
+</div>
+
+<div id="ar-ui">
+  <span class="house-name">MEGHA HOUSE</span>
+  <div class="live-dot"></div>
+</div>
+
+<button id="music-btn" onclick="toggleMusic()">🔊</button>
+<div id="hint">🔄 Move your phone to look around</div>
+
+<!-- ══════ JAVASCRIPT ══════ -->
 <script>
-  let musicPlaying = false;
-  const audio = document.getElementById('bgAudio');
+  // ─────────────────────────────────────────────
+  //  ⚠️ CHANGE THESE TO YOUR SCHOOL'S REAL GPS
+  //  Google Maps → right-click → "What's here?"
+  // ─────────────────────────────────────────────
+  const SCHOOL_LAT = 6.926289;   // ← replace this
+  const SCHOOL_LNG = 81.350763;  // ← replace this
+  const RADIUS_M   = 999999;
+
+  const audio = document.getElementById('bg-music');
+  let musicOn = false;
 
   function toggleMusic() {
-    if (musicPlaying) {
-      audio.pause();
-      document.getElementById('music-btn').textContent = '🔇';
+    const btn = document.getElementById('music-btn');
+    if (musicOn) {
+      audio.pause(); btn.textContent = '🔇'; musicOn = false;
     } else {
-      audio.play();
-      document.getElementById('music-btn').textContent = '🔊';
+      audio.play().catch(()=>{}); btn.textContent = '🔊'; musicOn = true;
     }
-    musicPlaying = !musicPlaying;
   }
 
-  function showAR() {
-    document.getElementById('geo-overlay').style.display = 'none';
-    document.getElementById('arScene').style.display = 'block';
-    document.getElementById('ar-ui').style.display = 'flex';
+  function haversine(la1, lo1, la2, lo2) {
+    const R = 6371000, r = Math.PI / 180;
+    const dLa = (la2-la1)*r, dLo = (lo2-lo1)*r;
+    const a = Math.sin(dLa/2)**2 +
+              Math.cos(la1*r) * Math.cos(la2*r) * Math.sin(dLo/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function showScene() {
+    // Fade out the overlay — 3D was already rendering behind it!
+    const ov = document.getElementById('geo-overlay');
+    ov.classList.add('fade-out');
+    setTimeout(() => { ov.style.display = 'none'; }, 850);
+
+    document.getElementById('ar-ui').style.display    = 'flex';
     document.getElementById('music-btn').style.display = 'block';
-    // Auto-start music (may need user interaction on iOS)
-    audio.play().then(() => { musicPlaying = true; }).catch(() => {});
+    document.getElementById('hint').style.display      = 'block';
+
+    // Tell A-Frame to recalculate canvas size
+    window.dispatchEvent(new Event('resize'));
+
+    // Start music on first tap (required by mobile browsers)
+    document.body.addEventListener('click', function once() {
+      if (!musicOn) {
+        audio.play().then(() => { musicOn = true; }).catch(() => {});
+      }
+      document.body.removeEventListener('click', once);
+    }, { once: true });
+
+    // Also try immediate autoplay
+    audio.play().then(() => { musicOn = true; }).catch(() => {});
   }
 
   function showDenied(dist) {
-    document.getElementById('geo-status').innerHTML =
-      `<span style="color:#FF4B4B">❌ Access Denied</span><br><br>
-       You are ${dist.toFixed(0)}m away from Megha House.<br>
-       <small>You must be at Obbegoda Secondary School.</small>
-       <br><br><a href="index.html" style="color:#1E6FFF">← Go Back</a>`;
-    document.querySelector('.spinner').style.display = 'none';
+    document.getElementById('geo-overlay').style.display = 'none';
+    document.getElementById('denied-overlay').style.display = 'flex';
+    document.getElementById('denied-dist').textContent =
+      'You are ' + Math.round(dist) + ' metres away.';
   }
 
-  function showError(msg) {
-    document.getElementById('geo-status').innerHTML =
-      `<span style="color:#FF9800">⚠️ ${msg}</span>
-       <br><br><button onclick="location.reload()" style="padding:10px 20px; background:#1E6FFF; border:none; border-radius:8px; color:white; cursor:pointer">Try Again</button>`;
-    document.querySelector('.spinner').style.display = 'none';
+  function geoCheck() {
+    if (!navigator.geolocation) {
+      document.getElementById('geo-status').textContent =
+        'GPS not available. Loading demo...';
+      setTimeout(showScene, 1500);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        const d = haversine(
+          pos.coords.latitude, pos.coords.longitude,
+          SCHOOL_LAT, SCHOOL_LNG
+        );
+        console.log('Distance: ' + d.toFixed(1) + 'm');
+        if (d <= RADIUS_M) {
+          document.getElementById('geo-status').textContent =
+            '✅ Location verified! Loading...';
+          setTimeout(showScene, 1000);
+        } else {
+          showDenied(d);
+        }
+      },
+      function() {
+        document.getElementById('geo-status').textContent =
+          'Location error. Loading demo...';
+        setTimeout(showScene, 1500);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
   }
 
-  // Run geo-lock immediately when page loads
-  window.addEventListener('load', function() {
-    checkGeoLock(showAR, showDenied, showError);
+  // Re-trigger animation after model loads
+  document.getElementById('athlete').addEventListener('model-loaded', function() {
+    console.log('Athlete loaded — playing animation');
+    this.setAttribute('animation-mixer',
+      'clip: *; loop: repeat; crossFadeDuration: 0.3');
   });
+
+  // Start geo check
+  geoCheck();
 </script>
 
 </body>
