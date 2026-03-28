@@ -4,36 +4,49 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Megha House AR</title>
-
-  <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <!-- AR.js — gives us the camera feed (real world background) -->
+  <!-- AR.js — makes phone camera show real world behind 3D models -->
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    html, body { width:100vw; height:100vh; overflow:hidden; background:#000; }
 
-    /* ── A-Frame scene always fills the screen ── */
-    a-scene {
-      position: fixed !important;
-      top: 0 !important; left: 0 !important;
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #C8D8DC; /* same grey as sky so no black flash */
+    }
+
+    /* ── Fix for black screen on Android ── */
+    #scene-wrap {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+    #scene-wrap a-scene {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+    /* Force the WebGL canvas to fill screen */
+    #scene-wrap a-scene canvas {
       width: 100vw !important;
       height: 100vh !important;
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
     }
-    /* Force the WebGL canvas AND the video (camera feed) to fill screen */
-    a-scene canvas,
-    #arjs-video,
-    .arjs-loader,
-    video {
+    /* Camera video feed fills screen (real world background) */
+    video, #arjs-video {
       position: fixed !important;
       top: 0 !important; left: 0 !important;
       width: 100vw !important;
       height: 100vh !important;
       object-fit: cover !important;
+      z-index: 0 !important;
     }
 
-    /* ── GEO OVERLAY — sits on top of camera ── */
+    /* ── GEO OVERLAY (on top of scene) ── */
     #geo-overlay {
       position: fixed; inset: 0; z-index: 999;
       background: #060C1A;
@@ -46,48 +59,49 @@
     #geo-overlay.gone { opacity:0; pointer-events:none; }
     #geo-overlay h2 {
       font-size: 2rem; font-weight: 900; letter-spacing: 4px;
-      background: linear-gradient(135deg, #1E6FFF, #FFD700);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background: linear-gradient(135deg,#1E6FFF,#FFD700);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
       margin-bottom: 8px;
     }
     #geo-overlay p { color:rgba(255,255,255,.55); font-size:.9rem; line-height:1.7; margin-top:10px; }
     .spin {
-      width:50px; height:50px; margin:18px auto;
+      width:50px; height:50px; margin:20px auto;
       border:3px solid rgba(30,111,255,.2);
       border-top-color:#1E6FFF; border-radius:50%;
-      animation:spin 1s linear infinite;
+      animation: spin 1s linear infinite;
     }
-    @keyframes spin { to{ transform:rotate(360deg); } }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
     /* ── DENIED ── */
     #denied {
-      position:fixed; inset:0; z-index:999; background:#060C1A;
-      color:white; display:none; flex-direction:column;
+      position:fixed; inset:0; z-index:999;
+      background:#060C1A; color:white;
+      display:none; flex-direction:column;
       align-items:center; justify-content:center;
-      text-align:center; padding:30px; font-family:Arial,sans-serif;
+      text-align:center; padding:30px;
+      font-family:Arial,sans-serif;
     }
     #denied h2 { color:#FF4B4B; font-size:2rem; margin-bottom:14px; }
     #denied p  { color:rgba(255,255,255,.6); line-height:1.7; }
-    #denied .km { font-size:1.5rem; font-weight:700; color:#FFD700; margin:12px 0; }
+    #denied .km { font-size:1.6rem; font-weight:700; color:#FFD700; margin:12px 0; }
 
     /* ── TOP BAR ── */
     #topbar {
-      position:fixed; top:0; left:0; right:0; z-index:200;
+      position:fixed; top:0; left:0; right:0; z-index:50;
       padding:14px 20px;
       display:none; justify-content:space-between; align-items:center;
-      background:linear-gradient(to bottom, rgba(6,12,26,.8), transparent);
+      background:linear-gradient(to bottom,rgba(6,12,26,.85),transparent);
       font-family:Arial,sans-serif; pointer-events:none;
     }
-    #topbar span { font-weight:900; font-size:1rem; color:white; letter-spacing:3px; }
+    #topbar span { font-weight:900; font-size:1rem; color:white; letter-spacing:3px; text-shadow: 0 1px 6px rgba(0,0,0,.9); }
     .dot { width:9px; height:9px; background:#00E676; border-radius:50%;
            animation:blink 1.5s ease infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
 
     /* ── MUSIC BUTTON ── */
     #mbtn {
-      position:fixed; bottom:28px; right:24px; z-index:200;
-      background:rgba(30,111,255,.85);
-      border:2px solid rgba(77,148,255,.5);
+      position:fixed; bottom:28px; right:24px; z-index:100;
+      background:rgba(30,111,255,.85); border:2px solid rgba(77,148,255,.5);
       border-radius:50%; width:58px; height:58px;
       font-size:1.4rem; cursor:pointer; color:white;
       box-shadow:0 4px 24px rgba(30,111,255,.5);
@@ -96,98 +110,103 @@
 
     /* ── HINT ── */
     #hint {
-      position:fixed; bottom:32px; left:0; right:80px; z-index:200;
+      position:fixed; bottom:32px; left:0; right:80px; z-index:50;
       text-align:center; font-size:.75rem;
-      color:rgba(255,255,255,.7); letter-spacing:1px;
+      color:rgba(255,255,255,.9); letter-spacing:1px;
       font-family:Arial,sans-serif; pointer-events:none; display:none;
-      text-shadow: 0 1px 4px rgba(0,0,0,.8);
+      text-shadow: 0 1px 6px rgba(0,0,0,.9);
     }
   </style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════════
-     TRUE AR SCENE
-     - AR.js gives us the phone CAMERA as background
-     - 3D models float on top of the real world
-     - Scene is ALWAYS in the DOM (never hidden)
-       → This is what fixes the black screen bug
-     - Geo overlay sits on top until GPS check passes
-══════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════
+     SCENE WRAPPER — gives A-Frame explicit dimensions
+     This is the fix for the black screen on Android
+══════════════════════════════════════════════ -->
+<div id="scene-wrap">
 <a-scene
   embedded
   arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
-  renderer="antialias: true; logarithmicDepthBuffer: true;"
   vr-mode-ui="enabled: false"
   loading-screen="enabled: false"
+  renderer="antialias: true; logarithmicDepthBuffer: true; colorManagement: true; physicallyCorrectLights: true; alpha: true;"
+  device-orientation-permission-ui="enabled: false"
 >
 
   <!-- ASSETS -->
   <a-assets timeout="20000">
     <a-asset-item id="m-athlete" src="models/athlete.glb"></a-asset-item>
     <a-asset-item id="m-logo"    src="models/logo.glb"></a-asset-item>
-    <a-asset-item id="m-test"    src="models/test-model.glb"></a-asset-item>
+    <a-asset-item id="m-trophy"  src="models/test-model.glb"></a-asset-item>
     <audio id="music" src="audio/megha-theme.mp3" preload="auto" loop></audio>
   </a-assets>
 
-  <!-- ════ MODELS — all 3 visible in front of camera ════
+  <!-- Lights -->
+  <a-light type="ambient"     color="#fff" intensity="0.8"></a-light>
+  <a-light type="directional" color="#fff" intensity="1.0"
+           position="-1 4 2" shadow="cast:true"></a-light>
 
-       Layout (top view):
-           [test-model]  [athlete]  [logo]
-              -2m          0m        +2m
-           all at -3m in front of camera
+  <!-- ════════════════════════════════════════
+       ALL 3 MODELS arranged in a fan shape
+       so user sees all of them at once
+       when they open the page.
 
-       Scale 1.0 = human-height character
-  ════ -->
+       ATHLETE  — centre front  (0, 0, -2.5)
+       LOGO     — right front   (1.8, 0, -2.5)
+       TROPHY   — left front    (-1.8, 0, -2.5)
+
+       Scale 0.9 = roughly human height,
+       close enough to see detail.
+  ════════════════════════════════════════ -->
 
   <!-- CENTRE — Animated Blue Athlete -->
   <a-entity
     id="athlete"
     gltf-model="#m-athlete"
-    position="0 -1 -3"
-    scale="1 1 1"
+    position="0 0 -2.5"
+    scale="0.9 0.9 0.9"
     rotation="0 0 0"
     animation-mixer="clip:*; loop:repeat; crossFadeDuration:0.3; timeScale:1"
+    shadow="cast:true"
   ></a-entity>
 
-  <!-- RIGHT — Logo model -->
+  <!-- RIGHT — Logo -->
   <a-entity
     id="logo"
     gltf-model="#m-logo"
-    position="2 -1 -3"
-    scale="1 1 1"
+    position="1.8 0 -2.5"
+    scale="0.8 0.8 0.8"
     rotation="0 -20 0"
+    shadow="cast:true"
   ></a-entity>
 
-  <!-- LEFT — Test model (slowly spinning) -->
+  <!-- LEFT — Trophy (slowly spinning) -->
   <a-entity
-    id="test"
-    gltf-model="#m-test"
-    position="-2 -1 -3"
-    scale="1 1 1"
+    id="trophy"
+    gltf-model="#m-trophy"
+    position="-1.8 0 -2.5"
+    scale="0.8 0.8 0.8"
     rotation="0 20 0"
-    animation="property:rotation; from:0 20 0; to:0 380 0; loop:true; dur:6000; easing:linear"
+    animation="property:rotation; to:0 380 0; loop:true; dur:6000; easing:linear"
+    shadow="cast:true"
   ></a-entity>
 
-  <!-- Floating text above athlete -->
-  <a-text
-    value="MEGHA HOUSE"
-    align="center"
-    position="0 1.2 -3"
-    color="#1E6FFF"
-    width="4"
-  ></a-text>
+  <!-- Floating MEGHA HOUSE text -->
+  <a-text value="MEGHA HOUSE" align="center"
+          position="0 2.5 -2.5" color="#1E6FFF" width="4.5"></a-text>
 
-  <!-- Camera (required for AR.js) -->
+  <!-- CAMERA — AR.js controls this automatically -->
   <a-entity camera></a-entity>
 
 </a-scene>
+</div><!-- end scene-wrap -->
 
 <!-- ══════ OVERLAYS ══════ -->
 <div id="geo-overlay">
   <h2>🏆 MEGHA HOUSE</h2>
   <div class="spin"></div>
-  <p id="gstatus">Verifying your location…<br>Please allow GPS &amp; Camera access.</p>
+  <p id="gstatus">Verifying your location…<br>Please allow GPS access.</p>
 </div>
 
 <div id="denied">
@@ -203,98 +222,92 @@
 </div>
 
 <button id="mbtn" onclick="toggleMusic()">🔊</button>
-<div id="hint">📷 Point your camera at the ground to see the AR characters!</div>
+<div id="hint">📷 Point your camera at the ground to see the 3D characters!</div>
 
 <!-- ══════ JS ══════ -->
 <script>
-  // ─────────────────────────────────────────────────
-  //  ⚠️  PUT YOUR SCHOOL GPS COORDINATES HERE
-  //  Google Maps → right-click school → "What's here?"
-  // ─────────────────────────────────────────────────
-  const LAT    = 6.926289;   // ← replace with real latitude
-  const LNG    = 81.350763;  // ← replace with real longitude
-  const RADIUS = 999999;      // metres
+// ─────────────────────────────────────────────────
+//  ⚠️  PUT YOUR SCHOOL GPS HERE
+//  Google Maps → right-click school → "What's here?"
+// ─────────────────────────────────────────────────
+const LAT    = 6.926289;   // ← replace
+const LNG    = 81.350763;  // ← replace
+const RADIUS = 999999;      // metres
 
-  const mus = document.getElementById('music');
-  let playing = false;
+const mus = document.getElementById('music');
+let playing = false;
 
-  function toggleMusic() {
-    const b = document.getElementById('mbtn');
-    if (playing) { mus.pause(); b.textContent='🔇'; playing=false; }
-    else { mus.play().catch(()=>{}); b.textContent='🔊'; playing=true; }
-  }
+function toggleMusic() {
+  const b = document.getElementById('mbtn');
+  if (playing) { mus.pause(); b.textContent='🔇'; playing=false; }
+  else { mus.play().catch(()=>{}); b.textContent='🔊'; playing=true; }
+}
 
-  function distM(la1,lo1,la2,lo2) {
-    const R=6371000, r=Math.PI/180;
-    const a = Math.sin((la2-la1)*r/2)**2 +
-      Math.cos(la1*r)*Math.cos(la2*r)*Math.sin((lo2-lo1)*r/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  }
+function dist(la1,lo1,la2,lo2) {
+  const R=6371000, r=Math.PI/180;
+  const a = Math.sin((la2-la1)*r/2)**2 +
+    Math.cos(la1*r)*Math.cos(la2*r)*Math.sin((lo2-lo1)*r/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 
-  function reveal() {
-    const ov = document.getElementById('geo-overlay');
-    ov.classList.add('gone');
-    setTimeout(()=>{ ov.style.display='none'; }, 800);
+function reveal() {
+  const ov = document.getElementById('geo-overlay');
+  ov.classList.add('gone');
+  setTimeout(()=>{ ov.style.display='none'; }, 750);
 
-    document.getElementById('topbar').style.display = 'flex';
-    document.getElementById('mbtn').style.display   = 'block';
-    document.getElementById('hint').style.display   = 'block';
+  document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('mbtn').style.display   = 'block';
+  document.getElementById('hint').style.display   = 'block';
 
-    // Force canvas resize after overlay removed
-    setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 200);
-    setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 600);
+  // Trigger A-Frame resize so canvas fills the wrapper properly
+  setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 100);
 
-    // Start music
-    const tryPlay = () => {
-      mus.play().then(()=>{ playing=true; }).catch(()=>{});
-    };
-    tryPlay();
-    document.body.addEventListener('click', tryPlay, { once:true });
-  }
+  // Autoplay music — works after any user interaction
+  const tryPlay = ()=>{
+    mus.play().then(()=>{ playing=true; }).catch(()=>{});
+  };
+  tryPlay();
+  document.body.addEventListener('click', tryPlay, { once:true });
+}
 
-  function deny(m) {
-    document.getElementById('geo-overlay').style.display = 'none';
-    document.getElementById('denied').style.display = 'flex';
-    document.getElementById('kdist').textContent =
-      'You are ' + Math.round(m) + ' metres away.';
-  }
+function deny(m) {
+  document.getElementById('geo-overlay').style.display='none';
+  document.getElementById('denied').style.display='flex';
+  document.getElementById('kdist').textContent='You are '+Math.round(m)+' metres away.';
+}
 
-  // ── Geo check ──
-  if (!navigator.geolocation) {
-    setTimeout(reveal, 800);
-  } else {
-    navigator.geolocation.getCurrentPosition(
-      function(p) {
-        const d = distM(p.coords.latitude, p.coords.longitude, LAT, LNG);
-        console.log('Distance: ' + d.toFixed(0) + 'm');
-        if (d <= RADIUS) {
-          document.getElementById('gstatus').textContent = '✅ Verified! Loading AR…';
-          setTimeout(reveal, 1000);
-        } else {
-          deny(d);
-        }
-      },
-      function() {
-        // GPS error → still load (demo mode)
-        setTimeout(reveal, 800);
-      },
-      { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
-    );
-  }
+// Geo check
+if (!navigator.geolocation) {
+  setTimeout(reveal, 800);
+} else {
+  navigator.geolocation.getCurrentPosition(
+    p => {
+      const d = dist(p.coords.latitude, p.coords.longitude, LAT, LNG);
+      console.log('Distance: '+d.toFixed(0)+'m');
+      d <= RADIUS
+        ? (document.getElementById('gstatus').textContent='✅ Verified! Loading…', setTimeout(reveal,1000))
+        : deny(d);
+    },
+    () => { setTimeout(reveal, 800); },
+    { enableHighAccuracy:true, timeout:12000, maximumAge:0 }
+  );
+}
 
-  // ── Re-apply animation after models load ──
-  document.getElementById('athlete').addEventListener('model-loaded', function() {
-    console.log('athlete loaded ✅');
-    this.setAttribute('animation-mixer',
-      'clip:*; loop:repeat; crossFadeDuration:0.3; timeScale:1');
+// Re-apply animation-mixer after each model loads
+['athlete','logo','trophy'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('model-loaded', function() {
+    console.log(id+' loaded');
+    if (id === 'athlete') {
+      this.setAttribute('animation-mixer',
+        'clip:*; loop:repeat; crossFadeDuration:0.3; timeScale:1');
+    }
   });
-  document.getElementById('logo').addEventListener('model-loaded', function() {
-    console.log('logo loaded ✅');
+  el.addEventListener('model-error', function() {
+    console.warn(id+' failed to load — check file name/path');
   });
-  document.getElementById('test').addEventListener('model-loaded', function() {
-    console.log('test-model loaded ✅');
-  });
+});
 </script>
-
 </body>
 </html>
